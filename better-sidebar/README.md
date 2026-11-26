@@ -72,7 +72,7 @@ Pinning an agent asks Herdr to keep the pin with the agent's terminal, so the pi
 
 A block with `"props": { "view": "lists" }` shows both lists, under two tabs:
 
-- **Spaces:** the spaces list, with each space's tabs beneath it in order, joined by tree lines: each tab or agent row shows its name with its program quietly beside it, like `1 Claude Code` or `2 zsh`. Clicking one opens it. Pinned agents sit in a Pinned group above every space. Next-agent keys follow the same order.
+- **Spaces:** the spaces list, with each space's tabs beneath it in order, joined by tree lines: named terminals and agents appear in pane order, with the program beside each name. In a split named `a` and `b`, a shell in `a` stays visible when an agent starts in `b`. Click a pane row to focus that pane. A plain tab with no named panes keeps its tab row. Pinned agents sit in a Pinned group above every space. Next-agent keys follow the same order.
 - **Agents:** the agents list, with its grouping menu at the right of the tabs. Each row shows the agent's label with its space quietly beside it, like `1 herdr-mods`; the icon says which agent it is.
 
 The Agents tab shows how many agents there are. For the ones that need you first, sort Agents by priority. The tab you pick is remembered. On the narrow rail, the two lists sit one above the other.

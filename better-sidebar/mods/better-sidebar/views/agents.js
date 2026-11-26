@@ -309,8 +309,9 @@ export class Agents {
     });
   }
 
-  subRow(t, s, shown, compact) {
+  subRow(t, s, shown, compact, pane = null) {
     const k = s.t;
+    const a = this.listed.get(k.address);
     const st = kidStatus(k, this.listed);
     const pic = icon(k.program, 14, t.foreground);
     const on = k.address === shown;
@@ -326,11 +327,11 @@ export class Agents {
       .text_size(12.5)
       .when(on, (el) => el.bg(t.raised))
       .hover((s) => s.bg(t.hover))
-      .on_click(() =>
-        this.listed.has(k.address)
-          ? run("pane.focus", { terminal: k.address })
-          : this.peek(k.address),
-      )
+      .on_click(() => {
+        if (pane) return run("pane.focus", { pane: pane.pane });
+        if (a) return run("pane.focus", { terminal: k.address });
+        return this.peek(k.address);
+      })
       .children(
         s.lines.map((l) =>
           div()
@@ -350,7 +351,7 @@ export class Agents {
           .flex_1()
           .truncate()
           .text_color(on ? t.foreground : t.muted)
-          .child(this.listed.get(k.address)?.pane_name || k.name || k.template || k.program?.name || k.address),
+          .child(a?.pane_name || pane?.name || k.name || k.template || k.program?.name || k.address),
       )
       .child(this.status(t, { status: st }, compact));
   }
@@ -465,8 +466,16 @@ export class Agents {
       for (const tab of s.tabs ?? []) tabById.set(tab.id, tab);
     }
     const allPanes = panes();
+    const focus = focused();
+    const namedSubPanes = new Map();
+    let shownSubPane;
     const panesByTab = new Map();
     for (const p of allPanes) {
+      // Live children can have a pane before they report agent status.
+      if (p.name && nested.has(p.terminal) && !this.listed.has(p.terminal)) {
+        namedSubPanes.set(p.terminal, p);
+        if (p.pane === focus?.pane) shownSubPane = p;
+      }
       let list = panesByTab.get(p.tab);
       if (!list) panesByTab.set(p.tab, (list = []));
       list.push(p);
@@ -482,7 +491,6 @@ export class Agents {
     const groupOf = grouping(sort.id, label);
     const rest = groupOf ? gatherGroups(unpinned, groupOf, sort.id) : unpinned;
     const list = [...pinned, ...rest];
-    const focus = focused();
     return {
       sort,
       count: shown.length,
@@ -491,12 +499,16 @@ export class Agents {
       allPanes,
       panesByTab,
       childrenByParent,
+      namedSubPanes,
+      shownSubPane,
+      allAgents: unordered,
       model: shown,
       now,
       byPriority,
       collapsed: narrow(),
       shown: focus?.agent,
       shownTab: focus?.tab,
+      shownPane: focus?.pane,
       list,
       label,
       groups: this.makeGroups(pinned, rest, groupOf, byPriority, urgency),
@@ -612,7 +624,8 @@ export class Agents {
     const subs = this.tree(view.all, a.address, [], view.childrenByParent);
     const row = this.agentRow(a, subs, view, t);
     if (this.folded.has(a.address)) return [row];
-    return [row, ...subs.map((s) => this.subRow(t, s, view.shown, view.byPriority))];
+    const shown = view.shownSubPane?.terminal ?? view.shown;
+    return [row, ...subs.map((s) => this.subRow(t, s, shown, view.byPriority, view.namedSubPanes.get(s.t.address)))];
   }
 
   railRow(a, i, t) {
@@ -692,9 +705,6 @@ export class Agents {
       ? (view.panesByTab.get(tab.id) ?? [])
       : panes().filter((p) => p.tab === tab.id);
     const l = lead(tab, tabPanes);
-    // The tab's title, as Herdr's tab bar shows it.
-    const name = tab.name;
-    const prog = l?.program?.name;
     // A mod's pane runs no program, but any of them may publish its own icon in
     // shared("pane-heads"), as a file tab does, else the mod may publish one, as Better Tabs reads them.
     const mods = tabPanes.filter((p) => p.mod);
@@ -704,9 +714,33 @@ export class Agents {
     const pub = head
       ? { icon: head.icon, tint: !head.color }
       : { icon: icons[mods[0]?.mod], tint: true };
-    const pic = icon(l?.program, 16, t.dim) ?? icon(pub, 16, t.dim);
+    return this.plainRow({
+      id: `tab-${tab.id}`,
+      name: tab.name,
+      prog: l?.program?.name,
+      pic: icon(l?.program, 16, t.dim) ?? icon(pub, 16, t.dim),
+      lit,
+      onClick: () => {
+        run("space.select", { id: w.id });
+        run("tab.select", { id: tab.id });
+      },
+    }, t);
+  }
+
+  paneRow(pane, lit, t) {
+    return this.plainRow({
+      id: `pane-${pane.pane}`,
+      name: pane.name,
+      prog: pane.program?.name,
+      pic: icon(pane.program, 16, t.dim),
+      lit,
+      onClick: () => run("pane.focus", { pane: pane.pane }),
+    }, t);
+  }
+
+  plainRow({ id, name, prog, pic, lit, onClick }, t) {
     return h_flex()
-      .id(`tab-${tab.id}`)
+      .id(id)
       .px(8)
       .h(30)
       .flex_none()
@@ -716,10 +750,7 @@ export class Agents {
       .when(lit, (el) => el.bg(t.selected))
       .cursor_pointer()
       .hover((s) => s.bg(t.hover))
-      .on_click(() => {
-        run("space.select", { id: w.id });
-        run("tab.select", { id: tab.id });
-      })
+      .on_click(onClick)
       .child(pic ?? div().w(16).flex_none())
       .child(
         h_flex()
