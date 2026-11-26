@@ -102,6 +102,25 @@ test("Spaces shows each space's tabs beneath it, as their agents where they have
   assert.deepEqual(live.order, ["t1", "t3", "t2"]);
 });
 
+for (const tab of ["spaces", "agents"]) {
+  for (const agent_name of ["tab", "title"]) {
+    test(`${tab} shows the pane name until cleared in ${agent_name} mode`, async () => {
+      const { mod, live } = await harness({ tab, settings: { agent_name } });
+      const first = live.agents[0];
+      Object.assign(first, { tab_name: "Build", title: "Compiling" });
+      const second = { ...first, address: "t4", pane: "p-t4", title: "Checking", pane_name: "[tests]" };
+      live.agents.push(second);
+
+      const row = (tree, id) => text(find(tree, id)).trim().split(/\s+/)[0];
+      const tree = mod.render();
+      assert.equal(row(tree, "ag-t1"), agent_name === "tab" ? "Build" : "Compiling");
+      assert.equal(row(tree, "ag-t4"), "[tests]");
+      second.pane_name = null;
+      assert.equal(row(mod.render(), "ag-t4"), agent_name === "tab" ? "Build" : "Checking");
+    });
+  }
+}
+
 test("the Agents tab counts agents, and picking a tab keeps it", async () => {
   const { mod, stored, cx } = await harness();
   const root = mod.render();

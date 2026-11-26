@@ -71,7 +71,7 @@ const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 // A sub-agent without a pane isn't in agents(): its raw word, error counting as
 // blocked. It's never done: it reports to its parent, and the parent's done is the news.
 const kidStatus = (k, listed) => {
-  const s = listed.get(k.address) ?? k.status;
+  const s = listed.get(k.address)?.status ?? k.status;
   return s === "error" ? "blocked" : s === "done" ? "idle" : s;
 };
 const SORTS = [
@@ -350,7 +350,7 @@ export class Agents {
           .flex_1()
           .truncate()
           .text_color(on ? t.foreground : t.muted)
-          .child(k.name || k.template || k.program?.name || k.address),
+          .child(this.listed.get(k.address)?.pane_name || k.name || k.template || k.program?.name || k.address),
       )
       .child(this.status(t, { status: st }, compact));
   }
@@ -442,7 +442,7 @@ export class Agents {
     const all = terminals();
     const now = Date.now();
     const unordered = agents();
-    this.listed = new Map(unordered.map((a) => [a.address, a.status]));
+    this.listed = new Map(unordered.map((a) => [a.address, a]));
     this.track(unordered, now);
     this.migratePins(all);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
@@ -750,10 +750,9 @@ export class Agents {
       .child(pic);
   }
 
-  // What a row is called: its tab's title, as Herdr's tab bar shows it, or with
-  // `agent_name: "title"` the terminal's live title, what the agent says it's doing.
-  // Either falls back to the other. The icon says which agent it is.
+  // A manual pane name wins. Clearing it restores the configured label.
   rowName(a, label) {
+    if (a.pane_name) return a.pane_name;
     const tab = a.tab_name || label;
     return this.nameBy === "title" ? clean(a.title) || tab : tab;
   }
